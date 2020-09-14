@@ -1,0 +1,117 @@
+#!/bin/bash
+
+# child id see Manage Children page: https://classroom.kindercare.com/accounts
+# ID is in the url : https://classroom.kindercare.com/accounts/xxxxxx 
+
+child_id="xxxxxx"
+no_insert_db=0
+caption=0
+
+
+usage() {
+        echo "Usage: $0 [ -c ] " 1>&2
+}
+
+exit_abnormal() {
+        usage
+        exit 1
+}
+
+while getopts ":ci" o; do
+	case "${o}" in
+		c)
+			caption=1
+			;;
+		i)
+			no_insert_db=1
+			;;
+		:)
+			echo "Error: -${OPTARG} requires an argument."
+			exit_abnormal
+			;;
+		*)
+			exit_abnormal
+			;;
+	esac
+done
+
+if [ ! -s $(dirname ${0})/id.db ]; then
+	> $(dirname ${0})/id.db
+fi
+
+
+done=0
+k=1
+
+until [ $done == "1" ]; do
+	wget -q --load-cookies $(dirname ${0})/cookies.txt "https://classroom.kindercare.com/accounts/${child_id}/journal_api?page=${k}" -O /tmp/_act
+
+	jq '.intervals[] | .[].activity' /tmp/_act > /tmp/_jsontemp 
+
+	if [ -s /tmp/_jsontemp ]; then
+		jq '.activity_file_id' /tmp/_jsontemp  > /tmp/_id 
+		jq '.title' /tmp/_jsontemp > /tmp/_title 
+		jq '.description' /tmp/_jsontemp > /tmp/_desc
+		jq '.created_at' /tmp/_jsontemp > /tmp/_date
+		jq '.image.big.url,.video.url' /tmp/_jsontemp | grep -v null  > /tmp/_img
+
+		sort /tmp/_id > /tmp/_id_new
+		
+		comm -3 --output-delimiter=+ $(dirname ${0})/id.db /tmp/_id_new | grep + | cut -d"+" -f2 > /tmp/_delta
+		
+		n=`cat /tmp/_id | wc -l`
+
+		new=`cat /tmp/_delta | wc -l`
+
+		if [ $new -gt 0 ]; then
+			i=1
+			until [ $i -gt $n ]; do
+				id=`head -$i /tmp/_id | tail -1`  
+			 	test=`grep $id /tmp/_delta`
+				
+				if [ ! -z "$test" ]; then
+					date=`head -$i /tmp/_date | tail -1 | tr -d '\"'` 
+					date=`date -d$date +%Y%m%d_%H%M%S`
+					desc=`head -$i /tmp/_desc | tail -1 | tr -d '\"' | tr -dc '[:alnum:][ ][.!?]\n\r'`  
+					desc=${desc/"Look what I'm doing today!"/}
+					title=`head -$i /tmp/_title | tail -1 | tr -d '\"' | tr -dc "[:alnum:][ ][.!?']\n\r"`  
+					title=${title/"Look what I'm doing today!"/}
+					img=`head -$i /tmp/_img | tail -1 | tr -d '\"'`  
+					
+					vidtest=`echo $img | grep "activity_file/video"`
+					if [ -z "$vidtest" ]; then
+						wget -q $img -O $date.jpg
+						exiftool -XPcomment="$desc" -title="$title $desc" $date.jpg
+						if [ "$caption" == "1" ]; then
+							size=`exiftool -ImageSize $date.jpg | cut -d: -f2 | cut -dx -f1 | cut -d\  -f2`
+							convert $date.jpg -background lightgray -size ${size}x -pointsize 20 caption:"$title $desc" -gravity center -append result.jpg
+							mv -f result.jpg $date.jpg
+						fi
+					else
+						wget -q $img -O $date.mov
+						echo "converting video"
+						ffmpeg -loglevel panic -i $date.mov -metadata title="$title $desc" $date.mp4
+						rm $date.mov
+					fi
+				else
+					done=1
+				fi
+				((i++))
+			done
+		else
+			done=1
+		fi
+		
+		((k++))
+
+		if [ "$no_insert_db" == "0" ]; then
+			cat /tmp/_delta >> $(dirname ${0})/id.db
+			sort -u $(dirname ${0})/id.db > /tmp/id.db_sorted
+			mv /tmp/id.db_sorted $(dirname ${0})/id.db
+		fi
+		rm -rf /tmp/_act /tmp/_id /tmp/_title /tmp/_desc /tmp/_date /tmp/_img /tmp/_delta /tmp/_jsontemp *.jpg_original
+	else
+		done=1
+	fi
+done
+
