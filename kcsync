@@ -114,7 +114,7 @@ until [ $done == "1" ]; do
 			sort -u $(dirname ${0})/${child_id}/id.db > /tmp/_${child_id}/id.db_sorted
 			mv /tmp/_${child_id}/id.db_sorted $(dirname ${0})/${child_id}/id.db
 		fi
-		rm -rf /tmp/_${child_id}/_act /tmp/_${child_id}/_id /tmp/_${child_id}/_title /tmp/_${child_id}/_desc /tmp/_${child_id}/_date /tmp/_${child_id}/_img /tmp/_${child_id}/_delta /tmp/_${child_id}/_jsontemp *.jpg_original
+		rm -rf /tmp/_${child_id}/_act /tmp/_${child_id}/_id /tmp/_${child_id}/_title /tmp/_${child_id}/_desc /tmp/_${child_id}/_date /tmp/_${child_id}/_img /tmp/_${child_id}/_delta /tmp/_${child_id}/_jsontemp $(dirname ${0})/${child_id}/*.jpg_original
 	else
 		done=1
 	fi
