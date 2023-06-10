@@ -26,6 +26,7 @@ kcsync -ci
 
 	-i : ignore db - id of downloaded media is not added to the local db
 	-c : metadata activity information is added as  caption below the picture.
+	-k : child id value for the child's profile xxxxxx
 
 
 Dependencies
